@@ -1,0 +1,42 @@
+[
+  {
+    "track": 1,
+    "points": 39,
+    "t_start_s": 0.0,
+    "t_end_s": 1.4,
+    "z_start_m": 3.37,
+    "z_end_m": 3.06,
+    "speed_mps": 0.07,
+    "r2": 0.067
+  },
+  {
+    "track": 2,
+    "points": 38,
+    "t_start_s": 8.83,
+    "t_end_s": 10.2,
+    "z_start_m": 4.91,
+    "z_end_m": 2.86,
+    "speed_mps": 1.38,
+    "r2": 0.95
+  },
+  {
+    "track": 3,
+    "points": 44,
+    "t_start_s": 14.7,
+    "t_end_s": 16.83,
+    "z_start_m": 6.52,
+    "z_end_m": 3.07,
+    "speed_mps": 1.58,
+    "r2": 0.965
+  },
+  {
+    "track": 4,
+    "points": 57,
+    "t_start_s": 21.33,
+    "t_end_s": 23.67,
+    "z_start_m": 6.9,
+    "z_end_m": 3.55,
+    "speed_mps": 1.5,
+    "r2": 0.96
+  }
+]
