@@ -1,0 +1,13 @@
+# tested on Apple M4 / macOS 26.6 / Python 3.13 (versions pinned after the run)
+torch==2.14.1
+torchvision
+ultralytics==8.4.177
+onnx
+onnxruntime==1.31.0
+onnxslim
+coremltools; sys_platform == "darwin"
+opencv-python
+pyyaml
+pandas
+matplotlib
+pytest

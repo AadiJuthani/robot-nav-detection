@@ -1,0 +1,11 @@
+# Built by scripts/prepare_dataset.py. `path` is relative to the repo root
+# (navdet.paths.resolved_data_yaml turns it absolute before Ultralytics sees it).
+path: datasets/nav3
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: cone
+  1: barrier
+  2: stop_sign

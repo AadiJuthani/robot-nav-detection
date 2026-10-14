@@ -1,0 +1,23 @@
+# datasets and training runs are big, rebuild them with the scripts
+datasets/
+data/
+runs/
+# exported / optimized models are rebuilt by scripts/optimize.py
+optimization/models/
+*.onnx
+*.mlpackage/
+*.engine
+# keep only the final fine-tuned weights
+*.pt
+!outputs/weights/best.pt
+# scratch output
+outputs/demo_all/
+tmp_dry/
+# secrets and local stuff
+.env
+.venv/
+.venv-coreml/
+__pycache__/
+*.pyc
+.DS_Store
+.pytest_cache/

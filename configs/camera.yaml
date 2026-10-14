@@ -1,0 +1,25 @@
+# Camera + object assumptions for distance estimation (navdet/distance.py).
+#
+# We weren't given the robot's actual camera, so by default this assumes a
+# generic phone / webcam lens with a 65 degree horizontal field of view.
+# Focal length in px then comes from  f = (W/2) / tan(HFOV/2).
+# If you calibrate a real camera with scripts/calibrate_camera.py it fills in
+# fx / fy (and the image size they were measured at) and those win over hfov.
+camera:
+  source: assumed        # becomes "calibrated" after running the calibration script
+  hfov_deg: 65.0
+  fx: null
+  fy: null
+  ref_width: null
+  ref_height: null
+
+# Real-world heights in meters. These are assumptions, not measurements,
+# and they're the biggest source of error in the distance numbers.
+object_heights_m:
+  cone: 0.70        # standard 28 inch traffic cone
+  barrier: 1.00     # mixed bag: jersey barriers ~0.8 m, A-frame barricades ~1.1 m
+  stop_sign: 0.75   # US standard 30 inch octagon, sign face only (box doesn't include the pole)
+
+limits:
+  min_box_px: 12      # anything shorter than this gets "?m"
+  edge_margin_px: 2   # box within this many px of the top/bottom edge counts as cut off

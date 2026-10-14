@@ -1,0 +1,11 @@
+# Only for the CoreML export (scripts/optimize.py --steps coreml).
+# coremltools 9.0 breaks on NumPy >= 2.4 (int() on a 1-element array is now an error)
+# and is only tested up to torch 2.7, so the export runs in its own small env.
+torch==2.7.1
+torchvision==0.22.1
+ultralytics==8.4.177
+coremltools==9.0
+numpy<2.4
+onnx
+opencv-python
+pyyaml

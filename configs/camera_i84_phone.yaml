@@ -1,0 +1,22 @@
+# Camera for the I-84 demo clip: a phone filming in portrait, frames are 404x720.
+#
+# Assumed phone main camera with about a 63 degree field of view across the long
+# side of a 16:9 frame. Held in portrait, the long side is vertical, so across
+# the 404 px width the field of view works out to about 38 degrees:
+#     f = (720/2) / tan(63/2) ~ 587 px   ->   HFOV = 2 * atan(202/587) ~ 38 deg
+camera:
+  source: assumed (phone, portrait)
+  hfov_deg: 38.0
+  fx: null
+  fy: null
+  ref_width: null
+  ref_height: null
+
+object_heights_m:
+  cone: 0.70        # highway crews use 28 inch (0.71 m) cones
+  barrier: 1.00
+  stop_sign: 0.75
+
+limits:
+  min_box_px: 10
+  edge_margin_px: 2
