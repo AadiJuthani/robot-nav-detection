@@ -16,17 +16,6 @@ the same row in the right image. That's what turns the matching problem into a
 Put the left camera at the origin and the right one at `(B, 0, 0)`. A point in
 the world sits at `P = (X, Y, Z)` in left-camera coordinates.
 
-```
-                 P (X, Y, Z)
-                 /\
-                /  \
-               /    \            Z = depth
-              /      \
-   ----------x_L------x_R------  image planes (distance f in front)
-            /          \
-     O_L  ●────── B ─────●  O_R
-```
-
 ## Derivation
 
 Projecting `P` into each camera (pinhole model, x measured from each image's
