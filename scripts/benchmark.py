@@ -41,14 +41,9 @@ MODELS = repo_path("optimization/models")
 # (label, file, backend, precision)
 VARIANTS = [
     ("Baseline (PyTorch)", "best_fp32.pt", "torch", "FP32"),
-    ("PyTorch half", "best_fp32.pt", "torch_half", "FP16"),
-    ("ONNX Runtime", "best_fp32.onnx", "onnx", "FP32"),
-    ("ONNX Runtime INT8", "best_int8.onnx", "onnx", "INT8 weights + activations"),
-    ("ONNX Runtime INT8, conv only", "best_int8_convonly.onnx", "onnx", "INT8 convs, float everything else"),
     ("CoreML FP16", "best_fp16.mlpackage", "coreml", "FP16"),
-    ("CoreML INT8", "best_int8.mlpackage", "coreml", "INT8 weights"),
-    ("Pruned 30%", "best_pruned30.pt", "torch", "FP32, 30% conv weights zeroed"),
-    ("Pruned 50%", "best_pruned50.pt", "torch", "FP32, 50% conv weights zeroed"),
+    ("ONNX Runtime INT8", "best_int8.onnx", "onnx", "INT8 weights + activations"),
+    ("Pruned 30%", "best_pruned30.pt", "torch", "FP32, 30% of conv weights zeroed"),
 ]
 
 
@@ -98,14 +93,12 @@ def timed_fps(run, warmup: int, runs: int) -> float:
     return runs / (time.perf_counter() - t0)
 
 
-def torch_runner(path: Path, device: str, x: np.ndarray, half: bool = False):
+def torch_runner(path: Path, device: str, x: np.ndarray):
     import torch
     from ultralytics import YOLO
 
     model = YOLO(str(path)).model.fuse().eval().to(device)
     t = torch.from_numpy(x).to(device)
-    if half:
-        model, t = model.half(), t.half()
 
     def run():
         with torch.inference_mode():
@@ -167,10 +160,6 @@ def bench_variant(label, fname, backend, precision, x, canvas_rgb, args) -> Row 
         attempt("cpu", lambda: torch_runner(path, "cpu", x))
         if gpu:
             attempt("gpu", lambda: torch_runner(path, gpu, x))
-    elif backend == "torch_half":
-        if gpu:
-            attempt("gpu", lambda: torch_runner(path, gpu, x, half=True))
-        row.notes.append("FP16 on CPU isn't a real option in PyTorch, GPU only")
     elif backend == "onnx":
         attempt("cpu", lambda: onnx_runner(path, x))
     elif backend == "coreml":
@@ -180,7 +169,7 @@ def bench_variant(label, fname, backend, precision, x, canvas_rgb, args) -> Row 
     if not args.skip_map:
         try:
             dev = (gpu or "cpu") if backend.startswith("torch") else "cpu"
-            r = evaluate(str(path), args.data, "test", args.imgsz, dev, half=backend == "torch_half")
+            r = evaluate(str(path), args.data, "test", args.imgsz, dev)
             row.mAP50, row.mAP50_95 = round(r["mAP50"], 4), round(r["mAP50_95"], 4)
         except Exception as e:
             row.notes.append(f"mAP failed: {type(e).__name__}: {e}")

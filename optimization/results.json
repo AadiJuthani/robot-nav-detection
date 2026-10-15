@@ -24,29 +24,17 @@
       "notes": []
     },
     {
-      "variant": "PyTorch half",
-      "file": "best_fp32.pt",
+      "variant": "CoreML FP16",
+      "file": "best_fp16.mlpackage",
       "precision": "FP16",
-      "size_mb": 5.49,
+      "size_mb": 5.42,
       "fps": {
-        "gpu": 198.6
+        "cpu": 109.2,
+        "gpu": 223.0,
+        "ane": 634.4
       },
-      "mAP50": 0.8538,
-      "mAP50_95": 0.6069,
-      "notes": [
-        "FP16 on CPU isn't a real option in PyTorch, GPU only"
-      ]
-    },
-    {
-      "variant": "ONNX Runtime",
-      "file": "best_fp32.onnx",
-      "precision": "FP32",
-      "size_mb": 10.67,
-      "fps": {
-        "cpu": 66.4
-      },
-      "mAP50": 0.8495,
-      "mAP50_95": 0.5874,
+      "mAP50": 0.8445,
+      "mAP50_95": 0.5864,
       "notes": []
     },
     {
@@ -62,49 +50,9 @@
       "notes": []
     },
     {
-      "variant": "ONNX Runtime INT8, conv only",
-      "file": "best_int8_convonly.onnx",
-      "precision": "INT8 convs, float everything else",
-      "size_mb": 3.18,
-      "fps": {
-        "cpu": 56.3
-      },
-      "mAP50": 0.8307,
-      "mAP50_95": 0.5767,
-      "notes": []
-    },
-    {
-      "variant": "CoreML FP16",
-      "file": "best_fp16.mlpackage",
-      "precision": "FP16",
-      "size_mb": 5.42,
-      "fps": {
-        "cpu": 109.2,
-        "gpu": 223.0,
-        "ane": 634.4
-      },
-      "mAP50": 0.8445,
-      "mAP50_95": 0.5864,
-      "notes": []
-    },
-    {
-      "variant": "CoreML INT8",
-      "file": "best_int8.mlpackage",
-      "precision": "INT8 weights",
-      "size_mb": 2.86,
-      "fps": {
-        "cpu": 109.7,
-        "gpu": 62.6,
-        "ane": 637.5
-      },
-      "mAP50": 0.8414,
-      "mAP50_95": 0.5854,
-      "notes": []
-    },
-    {
       "variant": "Pruned 30%",
       "file": "best_pruned30.pt",
-      "precision": "FP32, 30% conv weights zeroed",
+      "precision": "FP32, 30% of conv weights zeroed",
       "size_mb": 5.51,
       "fps": {
         "cpu": 41.2,
@@ -112,19 +60,6 @@
       },
       "mAP50": 0.8475,
       "mAP50_95": 0.6053,
-      "notes": []
-    },
-    {
-      "variant": "Pruned 50%",
-      "file": "best_pruned50.pt",
-      "precision": "FP32, 50% conv weights zeroed",
-      "size_mb": 5.51,
-      "fps": {
-        "cpu": 41.1,
-        "gpu": 160.3
-      },
-      "mAP50": 0.7658,
-      "mAP50_95": 0.5249,
       "notes": []
     }
   ]

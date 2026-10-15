@@ -15,7 +15,7 @@ before/after numbers on CPU and GPU.
 |---|---|
 | Detection | Fine-tuned YOLO11n: **0.853 mAP@50** (0.607 mAP@50-95) on a held-out test set |
 | Distance | Pinhole camera model from box height. On a real highway clip, each tracked cone's distance drops in a straight line (R² 0.95–0.97) |
-| Edge optimization | CoreML FP16 on the Apple Neural Engine: **634 FPS** vs 163 FPS for the PyTorch GPU baseline, -0.008 mAP@50. INT8 is 3.2x smaller |
+| Edge optimization | CoreML FP16 on the Apple Neural Engine: **634 FPS** vs 163 FPS for the PyTorch GPU baseline, -0.009 mAP@50. INT8 is 3.2x smaller |
 | Extra credit | Stereo disparity-to-depth derivation, optical-flow cone tracking |
 
 ## Running it
@@ -110,24 +110,19 @@ rests on the assumed focal length and cone height.
 
 ## 3. Optimization for edge devices
 
-All measured on the M4 MacBook Air: batch 1, 640×640 input, averaged over 200 runs after warm-up.
-mAP is on the same test set for every row. "GPU" is the M4's GPU, and CoreML can also run on the
-Neural Engine.
+I compared the baseline against three common edge tricks: half precision (FP16), 8-bit quantization
+(INT8) and pruning. Everything was measured on the M4 MacBook Air: batch 1, 640×640 input, averaged
+over 200 runs after warm-up, with mAP on the same test set for every row. "GPU" is the M4's GPU,
+and CoreML can also run on Apple's Neural Engine.
 
-| Variant | Precision | Size (MB) | CPU FPS | GPU FPS | Neural Engine FPS | mAP@50 | mAP@50-95 |
+| Variant | What changed | Size (MB) | CPU FPS | GPU FPS | Neural Engine FPS | mAP@50 | mAP@50-95 |
 |---|---|---|---|---|---|---|---|
-| **Baseline (PyTorch)** | FP32 | 5.5* | 44.2 | 163.0 | – | 0.853 | 0.607 |
-| PyTorch half | FP16 | 5.5* | – | 198.6 | – | 0.854 | 0.607 |
-| ONNX Runtime | FP32 | 10.7 | 66.4 | – | – | 0.850 | 0.587 |
-| **ONNX Runtime INT8** | INT8 weights + activations | 3.3 | **71.3** | – | – | 0.824 | 0.576 |
-| ONNX Runtime INT8, conv only | INT8 convs, float elsewhere | 3.2 | 56.3 | – | – | 0.831 | 0.577 |
-| **CoreML FP16** | FP16 | 5.4 | 109.2 | 223.0 | **634.4** | 0.845 | 0.586 |
-| CoreML INT8 | INT8 weights | 2.9 | 109.7 | 62.6 | 637.5 | 0.841 | 0.585 |
-| Pruned 30% | FP32, 30% of conv weights zeroed | 5.5* | 41.2 | 160.5 | – | 0.848 | 0.605 |
-| Pruned 50% | FP32, 50% of conv weights zeroed | 5.5* | 41.1 | 160.3 | – | 0.766 | 0.525 |
+| **Baseline** (PyTorch) | nothing | 5.5* | 44.2 | 163.0 | – | 0.853 | 0.607 |
+| **CoreML FP16** | half precision | 5.4 | 109.2 | 223.0 | **634.4** | 0.845 | 0.586 |
+| **ONNX Runtime INT8** | 8-bit weights + activations | 3.3 | 71.3 | – | – | 0.824 | 0.576 |
+| **Pruned 30%** | 30% of conv weights zeroed | 5.5* | 41.2 | 160.5 | – | 0.848 | 0.605 |
 
-\* Ultralytics saves `.pt` files in half precision, so the true FP32 size is the ONNX one, 10.7 MB.
-More detail in [optimization/results.md](optimization/results.md).
+\* Ultralytics saves `.pt` files in half precision. The true FP32 size is 10.7 MB.
 
 Before vs. after on the same image, both on the CPU: the same six cones, nearly the same distances,
 27 ms → 18 ms end to end.
@@ -136,16 +131,14 @@ Before vs. after on the same image, both on the CPU: the same six cones, nearly 
 
 What I took from it:
 
-- **On this hardware the biggest win is the right accelerator, not quantization.** CoreML FP16 on the
-  Neural Engine is 3.9x the PyTorch GPU baseline for almost no accuracy cost.
-- **FP16 is basically free:** 1.22x faster on the GPU with the same mAP.
-- **INT8 makes the model 3.2x smaller** than FP32 for -0.026 mAP@50, but it's only 7% faster than FP32 ONNX
-  on the M4's CPU, which is already very fast at float math. It should help more on a small ARM board.
-- **How you quantize matters.** Quantizing only the conv layers was *slower* than FP32, because the
-  runtime kept converting between int8 and float around every activation. Quantizing everything
-  except the detection head's output fixed that.
-- **Unstructured pruning doesn't speed anything up**, since zeros still get multiplied. 30% is nearly
-  free on accuracy, but 50% without retraining costs 0.087 mAP@50.
+- **FP16 was the clear winner.** On the Neural Engine it runs at 634 FPS, 3.9x the baseline's GPU speed,
+  for -0.009 mAP@50. For a robot running on Apple silicon, this is the one to ship.
+- **INT8 is the size win:** 3.2x smaller than FP32 and 1.6x faster on the CPU, for -0.029 mAP@50. Most
+  of that speedup comes from ONNX Runtime itself, though (plain FP32 ONNX already gets 66 FPS), since
+  the M4's CPU is very fast at float math. INT8 should matter more on a small ARM board.
+- **Unstructured pruning doesn't make anything faster,** because the zeroed weights still get multiplied.
+  It barely hurts accuracy, but a real speedup needs structured pruning (dropping whole channels) and
+  a fine-tune afterwards.
 
 ## Extra credit
 

@@ -1,12 +1,11 @@
 """
 Makes the smaller / faster versions of the trained model that benchmark.py compares.
 
-  * ONNX FP32           plain export, the reference for the ONNX Runtime numbers
-  * ONNX INT8           static post-training quantization with ONNX Runtime
-                        (weights AND activations in 8-bit, calibrated on val images)
   * CoreML FP16         half precision, runs on the Apple GPU / Neural Engine
-  * CoreML INT8         8-bit weights (Ultralytics' CoreML int8 export)
-  * Pruned              L1 unstructured pruning of all conv weights, no retraining
+  * ONNX INT8           static post-training quantization with ONNX Runtime
+                        (weights AND activations in 8-bit, calibrated on val images).
+                        Goes through a plain FP32 ONNX export first.
+  * Pruned 30%          L1 unstructured pruning of the conv weights, no retraining
 
 Everything lands in optimization/models/.
 
@@ -51,23 +50,23 @@ def export_onnx(weights: Path, imgsz: int) -> Path:
     return out
 
 
-def export_coreml(weights: Path, imgsz: int, half: bool, int8: bool, dst: Path) -> Path:
+def export_coreml_fp16(weights: Path, imgsz: int, dst: Path) -> Path:
     from ultralytics import YOLO
 
-    out = Path(YOLO(str(weights)).export(format="coreml", imgsz=imgsz, half=half, int8=int8))
+    out = Path(YOLO(str(weights)).export(format="coreml", imgsz=imgsz, half=True))
     if dst.exists():
         shutil.rmtree(dst)
     shutil.move(str(out), dst)
     return dst
 
 
-def detect_head_float_nodes(onnx_path: Path, whole_head: bool) -> list[str]:
+def detect_head_float_nodes(onnx_path: Path) -> list[str]:
     """
-    Nodes to leave in float. Always: the last 1x1 conv of each head branch (raw box
-    regression + class scores) and the DFL conv, since they spit out numbers that get
-    decoded straight into pixel coordinates. With whole_head=True also every other
-    non-conv op in the head (the decode math: reshapes, softmax, sigmoid, the
-    multiply by stride), whose value ranges are huge and quantize badly.
+    Nodes to leave in float: the last 1x1 conv of each head branch (raw box
+    regression + class scores), the DFL conv, and the decode math after them
+    (reshapes, softmax, sigmoid, the multiply by stride). These spit out numbers
+    that get turned straight into pixel coordinates, and their value ranges are
+    huge, so they quantize badly. Everything else goes to int8.
     """
     import onnx
 
@@ -86,21 +85,18 @@ def detect_head_float_nodes(onnx_path: Path, whole_head: bool) -> list[str]:
                 keep.append(n.name)
             continue
         # what's left is the decode math after the branches (+ the DFL conv)
-        if n.op_type == "Conv" or whole_head:
-            keep.append(n.name)
+        keep.append(n.name)
     return keep
 
 
-def quantize_onnx_int8(fp32_onnx: Path, calib_images: list[Path], imgsz: int, dst: Path,
-                       conv_only: bool = False) -> Path:
+def quantize_onnx_int8(fp32_onnx: Path, calib_images: list[Path], imgsz: int, dst: Path) -> Path:
     """
     Static INT8 quantization (QDQ format) calibrated on real images.
 
-    conv_only=True quantizes just the convs. Sounds safest, but every SiLU in
-    between stays float, so the runtime keeps converting int8 <-> float around
-    each layer and that overhead can eat the whole speedup. conv_only=False
-    quantizes everything ONNX Runtime knows how to (conv, SiLU's sigmoid/mul,
-    add, concat, pooling...) and only keeps the detection head's decode in float.
+    Everything ONNX Runtime can quantize goes to int8 (convs, the SiLU's
+    sigmoid/mul, adds, concats, pooling), not just the convs. Quantizing only the
+    convs leaves every activation in float, and the runtime then spends its time
+    converting int8 <-> float around each layer.
     """
     import onnx
     import onnxruntime as ort
@@ -129,7 +125,7 @@ def quantize_onnx_int8(fp32_onnx: Path, calib_images: list[Path], imgsz: int, ds
         print(f"quant_pre_process failed ({e}), quantizing the raw export instead")
         src = fp32_onnx
 
-    skip = detect_head_float_nodes(src, whole_head=not conv_only)
+    skip = detect_head_float_nodes(src)
     print(f"keeping {len(skip)} detect-head nodes in float")
     quantize_static(
         model_input=str(src),
@@ -139,7 +135,6 @@ def quantize_onnx_int8(fp32_onnx: Path, calib_images: list[Path], imgsz: int, ds
         per_channel=True,
         weight_type=QuantType.QInt8,
         activation_type=QuantType.QUInt8,
-        op_types_to_quantize=["Conv"] if conv_only else None,
         nodes_to_exclude=skip,
         calibrate_method=CalibrationMethod.MinMax,
     )
@@ -183,7 +178,7 @@ def main() -> None:
     ap.add_argument("--imgsz", type=int, default=640)
     ap.add_argument("--calib-dir", default="datasets/nav3/images/val")
     ap.add_argument("--calib-n", type=int, default=200)
-    ap.add_argument("--prune", type=float, nargs="+", default=[0.3, 0.5])
+    ap.add_argument("--prune", type=float, default=0.3, help="share of conv weights to zero")
     ap.add_argument("--steps", nargs="+", default=["onnx", "int8", "coreml", "prune"],
                     help="any of: onnx int8 coreml prune")
     args = ap.parse_args()
@@ -208,21 +203,14 @@ def main() -> None:
     if "int8" in args.steps:
         calib = sorted(repo_path(args.calib_dir).iterdir())
         random.Random(0).shuffle(calib)
-        step("ONNX INT8, all ops (static, ORT)",
+        step("ONNX INT8 (static, ORT)",
              lambda: quantize_onnx_int8(onnx_fp32, calib[: args.calib_n], args.imgsz, MODELS / "best_int8.onnx"))
-        step("ONNX INT8, conv only (static, ORT)",
-             lambda: quantize_onnx_int8(onnx_fp32, calib[: args.calib_n], args.imgsz,
-                                        MODELS / "best_int8_convonly.onnx", conv_only=True))
     if "coreml" in args.steps and sys.platform == "darwin":
         # coremltools lags behind new torch releases, see README (exported from a torch 2.7 env)
-        step("CoreML FP16", lambda: export_coreml(base, args.imgsz, half=True, int8=False,
-                                                 dst=MODELS / "best_fp16.mlpackage"))
-        step("CoreML INT8", lambda: export_coreml(base, args.imgsz, half=False, int8=True,
-                                                 dst=MODELS / "best_int8.mlpackage"))
+        step("CoreML FP16", lambda: export_coreml_fp16(base, args.imgsz, MODELS / "best_fp16.mlpackage"))
     if "prune" in args.steps:
-        for amount in args.prune:
-            tag = int(round(amount * 100))
-            step(f"pruned {tag}%", lambda amount=amount, tag=tag: prune_weights(base, amount, MODELS / f"best_pruned{tag}.pt"))
+        tag = int(round(args.prune * 100))
+        step(f"pruned {tag}%", lambda: prune_weights(base, args.prune, MODELS / f"best_pruned{tag}.pt"))
     if failed:
         print("failed steps:", failed)
 
